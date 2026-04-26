@@ -125,26 +125,3 @@ Contributions, ideas, and improvements are welcome.
 ## 📜 License
 
 MIT License
-```
-:::
-
----
-
-# 🎯 نکته مهم
-
-این README طوری نوشته شده که:
-
-✔ برای GitHub حرفه‌ایه  
-✔ برای DAO قابل ارائه‌ست  
-✔ برای جذب کاربر قابل فهمه  
-
----
-
-اگر بخوای قدم بعدی حرفه‌ای:
-
-👉 می‌تونم برات بنویسم:
-- docs/alerts.md
-- `docs/integration.md`
-- یا حتی متن Proposal برای Gains DAO
-
-بگو کدومو
