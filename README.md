@@ -22,9 +22,9 @@ It provides a standardized, JSON-based alert layer for seamless integration betw
 ## 📡 Alert Architecture
 
 OpenFI uses a structured JSON format for all alerts:
-
+```bash
 json {   "license": "SDK-USER-123",   "uid": "OPENFI",   "trade_id": "OPENFI_BTCUSDT_1710000000_45231",   "action": "BUY",   "type": "ENTRY",   "symbol": "BTCUSDT",   "price": 65000,   "time": 1710000000 } 
-
+```
 ### Supported Alert Types
 
 - BUY ENTRY
@@ -131,6 +131,7 @@ OpenFi-Trade-Engine/
 ├── openfi.pine
 ├── README.md
 └── LICENSE
+```
 
 ## ⚠️ Disclaimer
 
