@@ -67,7 +67,7 @@ sell = bear and nbuysell ? label.new(bar_index, y4, ssma4 <= ssma5 ? "🎴 Sell"
 //================ HULL =================//
 
 hull_src = input(close, title='Hull Source', group = 'Hull')
-modeSwitch = input.string('Hma', title='Hull Variation', options=['Hma', 'Thma', 'Ehma'], group = 'Hull')
+modeSwitch = input.string('Ehma', title='Hull Variation', options=['Hma', 'Thma', 'Ehma'], group = 'Hull')
 length = input(88, title='Hull Length', group = 'Hull')
 lengthMult = input(1.0, title='Length multiplier', group = 'Hull')
 
@@ -432,44 +432,89 @@ final_bear = use_ms ? ms_bear : false
 // === CUSTOM ALERT INPUTS ===
 group_alerts = "Custom Alerts"
 // Authentication & Identification
-inp_license = input.string("", "License Key", group=group_alerts)
+inp_license = input.string("algoman", "License Key", group=group_alerts)
 inp_uid     = input.string("SDK", "Unique ID / Source", group=group_alerts)
 
 inp_long_entry  = input.string('{"action":"BUY","type":"ENTRY"}',  "BUY Entry Message",  group=group_alerts)
 inp_long_close  = input.string('{"action":"BUY","type":"CLOSE"}',  "BUY Close Message",  group=group_alerts)
 inp_short_entry = input.string('{"action":"SELL","type":"ENTRY"}', "SELL Entry Message", group=group_alerts)
 inp_short_close = input.string('{"action":"SELL","type":"CLOSE"}', "SELL Close Message", group=group_alerts)
+inp_send_telegram = input.bool(true, "Send To Telegram", group=group_alerts)
+inp_chat_id = input.string("-100XXXXXXXXXX", "Telegram Chat ID", group=group_alerts)
+inp_thread_id = input.string("0", "Message Thread ID", group=group_alerts)
+inp_img_buy  = input.string("https://raw.githubusercontent.com/algomanlife/OpenFi-Trade-Engine/refs/heads/main/asset/long.png", "BUY Image URL", group=group_alerts)
+inp_img_sell = input.string("https://raw.githubusercontent.com/algomanlife/OpenFi-Trade-Engine/refs/heads/main/asset/short.png", "SELL Image URL", group=group_alerts)
+inp_caption_prefix = input.string("🎴 Open Fi Signal", "Caption Prefix", group=group_alerts)
+inp_use_position_box = input.bool(true, "Enable Telegram Position Box", group=group_alerts)
+inp_sl_dollar = input.float(0.0, "Stop Loss ($)", minval=0, group=group_alerts)
+inp_tp_dollar = input.float(0.0, "Take Profit ($)", minval=0, group=group_alerts)
+
+alert_mode = input.string("SMART", "Alert Mode", options=["SMART", "BASIC"], group=group_alerts)
 
 // === CUSTOM ALERT SYSTEM ===
 
+dollar_to_price(dollar) =>
+    dollar == 0 ? na : dollar / syminfo.pointvalue
+
 // Entry Conditions
-long_entry  = final_bull
-short_entry = final_bear
+// === SIGNAL SOURCES ===
+basic_long  = bull
+basic_short = bear
+
+smart_long  = final_bull
+smart_short = final_bear
+
+// === MODE SWITCH ===
+long_entry  = alert_mode == "SMART" ? smart_long : basic_long
+short_entry = alert_mode == "SMART" ? smart_short : basic_short
 
 // Exit Conditions (opposite signal)
 long_close  = final_bear
 short_close = final_bull
 
 // === ALERT MESSAGES (CUSTOM + SAFE JSON BUILDER) ===
-build_msg(base) =>
-    (base + ',"license":"' + inp_license + '"' + ',"uid":"' + inp_uid + '"' +',"symbol":"' + syminfo.ticker + '"' +',"price":' + str.tostring(close) +',"time":' + str.tostring(time) +'}')
+build_msg(base, side, type) =>
+    img = side == "BUY" ? inp_img_buy : inp_img_sell
 
-alert_long_entry  = build_msg(inp_long_entry)
-alert_long_close  = build_msg(inp_long_close)
-alert_short_entry = build_msg(inp_short_entry)
-alert_short_close = build_msg(inp_short_close)
+    entry = close
+
+    float sl = na
+    float tp = na
+
+    if inp_use_position_box
+        if side == "BUY"
+            sl := inp_sl_dollar > 0 ? entry - dollar_to_price(inp_sl_dollar) : na
+            tp := inp_tp_dollar > 0 ? entry + dollar_to_price(inp_tp_dollar) : na
+        else
+            sl := inp_sl_dollar > 0 ? entry + dollar_to_price(inp_sl_dollar) : na
+            tp := inp_tp_dollar > 0 ? entry - dollar_to_price(inp_tp_dollar) : na
+
+    rr = (not na(sl) and not na(tp)) ? math.abs(tp - entry) / math.abs(entry - sl) : na
+
+    sl_txt = not na(sl) ? str.tostring(sl) : "-"
+    tp_txt = not na(tp) ? str.tostring(tp) : "-"
+    rr_txt = not na(rr) ? str.tostring(rr, "#.##") : "-"
+
+    caption = inp_caption_prefix + "\n\n" + "🎯 " + side + " " + type + "\n\n" + "Symbol: " + syminfo.ticker + "\n" + "TF: " + timeframe.period + "\n\n" + "Entry: " + str.tostring(entry) + "\n" + "SL: " + sl_txt + "\n" + "TP: " + tp_txt + "\n" + "RR: " + rr_txt + "\n\n" + "Price: " + str.tostring(close)
+
+    '{' +'"chat_id":"' + inp_chat_id + '",' +'"message_thread_id":' + inp_thread_id + ',' +'"photo":"' + img + '",' +'"caption":"' + caption + '"' +'}'
+
+alert_long_entry  = build_msg(inp_long_entry, "BUY", "ENTRY")
+alert_long_close  = build_msg(inp_long_close, "BUY", "CLOSE")
+alert_short_entry = build_msg(inp_short_entry, "SELL", "ENTRY")
+alert_short_close = build_msg(inp_short_close, "SELL", "CLOSE")
 
 // === EXECUTION (NO DOUBLE SIGNAL SAME BAR) ===
 
-// Priority: CLOSE first, then ENTRY on next condition only if no close happened
-if long_close
-    alert(alert_long_close, alert.freq_once_per_bar_close)
-else if short_close
-    alert(alert_short_close, alert.freq_once_per_bar_close)
-else if long_entry
-    alert(alert_long_entry, alert.freq_once_per_bar_close)
-else if short_entry
-    alert(alert_short_entry, alert.freq_once_per_bar_close)
+if inp_send_telegram
+    if long_close
+        alert(alert_long_close, alert.freq_once_per_bar_close)
+    else if short_close
+        alert(alert_short_close, alert.freq_once_per_bar_close)
+    else if long_entry
+        alert(alert_long_entry, alert.freq_once_per_bar_close)
+    else if short_entry
+        alert(alert_short_entry, alert.freq_once_per_bar_close)
 
 // === COMBINED ALERT CONDITION (BUY & SELL IN ONE) ===
 simple_alerts = input.bool(true, "Enable Simple Alerts", group="Custom Alerts")
