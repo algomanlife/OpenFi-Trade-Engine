@@ -4,6 +4,8 @@ OpenFI is an open-source signal engine built on TradingView, designed to bridge 
 
 It provides a standardized, JSON-based alert layer for seamless integration between indicators, trading bots, and execution platforms.
 
+<img width="3355" height="1286" alt="image" src="https://github.com/user-attachments/assets/708af8dd-6bd8-4c8a-8c43-9359c0bdaa70" />
+
 ---
 
 ## 🚀 Key Features
@@ -104,8 +106,30 @@ Bridging:
 
 ## 📁 Project Structure
 
-openfi-sdk/ │ ├── src/              # Pine Script source ├── docs/             # Documentation ├── examples/         # Alert & webhook examples └── assets/           # Images and diagrams
-
+OpenFi-Trade-Engine/
+│
+├── core/
+│   └── strategy/              # Pine Script logic
+│
+├── modules/
+│   ├── risk/
+│   ├── alerts/
+│   └── parser/
+│
+├── integrations/
+│   ├── pineconnector/
+│   ├── gTrade/
+│   └── GMX/
+│
+├── api/
+│   └── webhook/
+│
+├── examples/
+├── docs/
+│
+├── README.md
+├── LICENSE
+└── openfi.pine
 ---
 
 ## ⚠️ Disclaimer
