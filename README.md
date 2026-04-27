@@ -106,10 +106,11 @@ Bridging:
 
 ## 📁 Project Structure
 
+```bash
 OpenFi-Trade-Engine/
 │
 ├── core/
-│   └── strategy/              # Pine Script logic
+│   └── strategy/        # Pine Script logic
 │
 ├── modules/
 │   ├── risk/
@@ -118,8 +119,8 @@ OpenFi-Trade-Engine/
 │
 ├── integrations/
 │   ├── pineconnector/
-│   ├── gTrade/
-│   └── GMX/
+│   ├── mt4/
+│   └── mt5/
 │
 ├── api/
 │   └── webhook/
@@ -127,10 +128,9 @@ OpenFi-Trade-Engine/
 ├── examples/
 ├── docs/
 │
+├── openfi.pine
 ├── README.md
-├── LICENSE
-└── openfi.pine
----
+└── LICENSE
 
 ## ⚠️ Disclaimer
 
