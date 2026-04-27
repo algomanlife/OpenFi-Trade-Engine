@@ -1,9 +1,21 @@
+//
+//  OpenFi.pine
+//  SDK | mini™ 🎴 V2.2.7 (Engine)
+//
+//  Created by algoman on 21/02/2024.
+//
+
+// © algomanlife
+
 //@version=5
+
 // === INPUTS ===
+
 nbuysell     = input.bool(true, 'Show Buy/Sell Labels', group = 'Buy/Sell & sensitivity')
-nsensitivity = input.float(12, title="sensitivity", minval=1, maxval=20, group = 'Buy/Sell & sensitivity')
+nsensitivity = input.float(4.2, title="sensitivity", minval=1, maxval=20, group = 'Buy/Sell & sensitivity')
 
 // === TREND ===
+
 supertrend_func(_close, factor, atrLen) =>
     atr = ta.atr(atrLen)
     upperBand = _close + factor * atr
@@ -30,6 +42,7 @@ supertrend_func(_close, factor, atrLen) =>
     [superTrend, direction]
 
 // === CALC ===
+
 [supertrend, direction] = supertrend_func(close, nsensitivity * 2, 11)
 
 ssma4 = ta.sma(close, 8)
@@ -37,20 +50,25 @@ ssma5 = ta.sma(close, 9)
 ssma9 = ta.sma(close, 13)
 
 // === LEVELS ===
+
 y3 = low - (ta.atr(30) * 2)
 y4 = high + (ta.atr(30) * 2)
 
 // === SIGNAL ===
+
 bull = ta.crossover(close, supertrend) and close >= ssma9
 bear = ta.crossunder(close, supertrend) and close <= ssma9
 
 // === OUTPUT ===
+
 buy  = bull and nbuysell ? label.new(bar_index, y3, ssma4 >= ssma5 ? "🎴 Buy" : "🧑‍🚀 Buy", xloc.bar_index, yloc.price, #089981, label.style_label_up, color.white, size.normal) : na
 sell = bear and nbuysell ? label.new(bar_index, y4, ssma4 <= ssma5 ? "🎴 Sell" : "🧑‍🚀 Sell", xloc.bar_index, yloc.price, #990825, label.style_label_down, color.white, size.normal) : na
+
 //================ HULL =================//
+
 hull_src = input(close, title='Hull Source', group = 'Hull')
 modeSwitch = input.string('Hma', title='Hull Variation', options=['Hma', 'Thma', 'Ehma'], group = 'Hull')
-length = input(55, title='Hull Length', group = 'Hull')
+length = input(88, title='Hull Length', group = 'Hull')
 lengthMult = input(1.0, title='Length multiplier', group = 'Hull')
 
 useHtf = input(false, title='Show Hull MA from HTF', group = 'Hull')
@@ -84,18 +102,25 @@ MHULL = HULL
 SHULL = HULL[2]
 
 // COLOR
+
 hullColor = switchColor ? HULL > HULL[2] ? #00ff00 : #ff0000 : #ff9800
 
+
 // PLOTS
+
 Fi1 = plot(MHULL, title='MHULL', color=hullColor, linewidth=thicknesSwitch, transp=50)
 Fi2 = plot(visualSwitch ? SHULL : na, title='SHULL', color=hullColor, linewidth=thicknesSwitch, transp=50)
 fill(Fi1, Fi2, title='Band Filler', color=hullColor, transp=transpSwitch)
 
 
 barcolor(color=candleCol ? hullColor : na)
+
 //================================================//
+
 indicator("Algoman OpenFi", overlay=true, max_labels_count=500, max_boxes_count=500, max_lines_count=500)
+
 // Get user input
+
 gr_signal = "MAIN SETTINGS"
 gr_dash = "CONSOLE UI"
 history_of_demand_to_keep = 20
@@ -109,7 +134,9 @@ res = input.timeframe(title='Time Frame', defval='', group="Support & Resistance
 s1 = request.security(syminfo.tickerid, res, showsr, gaps=barmerge.gaps_on)
 demand_color = input.color(color.rgb(0,188,212,70), title = 'Support & Resistance Color', group = 'Support & Resistance')
 supply_color = input.color(color.rgb(178,40,51,70), title = '', group = 'Support & Resistance')
+
 //Support//
+
 var int[] demandRejections = array.new_int(history_of_demand_to_keep, 0)
 var int[] supplyRejections = array.new_int(history_of_demand_to_keep, 0)
 var int[] demandCreationBars = array.new_int(history_of_demand_to_keep, na)
@@ -443,6 +470,13 @@ else if long_entry
     alert(alert_long_entry, alert.freq_once_per_bar_close)
 else if short_entry
     alert(alert_short_entry, alert.freq_once_per_bar_close)
+
+// === COMBINED ALERT CONDITION (BUY & SELL IN ONE) ===
+simple_alerts = input.bool(true, "Enable Simple Alerts", group="Custom Alerts")
+
+combined_signal = long_entry or short_entry
+
+alertcondition(simple_alerts and combined_signal, title="🎴 BUY/SELL SIGNAL", message="Signal Triggered")
 
 
 
