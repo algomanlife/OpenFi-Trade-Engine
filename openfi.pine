@@ -97,7 +97,7 @@ Mode(modeSwitch, src, len) =>
     modeSwitch == 'Hma' ? HMA(src, len) : modeSwitch == 'Ehma' ? EHMA(src, len) : modeSwitch == 'Thma' ? THMA(src, len / 2) : na
 
 _hull = Mode(modeSwitch, hull_src, int(length * lengthMult))
-HULL = useHtf ? request.security(syminfo.ticker, htf, _hull) : _hull
+HULL = useHtf ? request.security(syminfo.tickerid, htf, _hull) : _hull
 MHULL = HULL
 SHULL = HULL[2]
 
@@ -108,9 +108,9 @@ hullColor = switchColor ? HULL > HULL[2] ? #00ff00 : #ff0000 : #ff9800
 
 // PLOTS
 
-Fi1 = plot(MHULL, title='MHULL', color=hullColor, linewidth=thicknesSwitch, transp=50)
-Fi2 = plot(visualSwitch ? SHULL : na, title='SHULL', color=hullColor, linewidth=thicknesSwitch, transp=50)
-fill(Fi1, Fi2, title='Band Filler', color=hullColor, transp=transpSwitch)
+Fi1 = plot(MHULL, title='MHULL', color=color.new(hullColor, 50), linewidth=thicknesSwitch)
+Fi2 = plot(visualSwitch ? SHULL : na, title='SHULL', color=color.new(hullColor, 50), linewidth=thicknesSwitch)
+fill(Fi1, Fi2, title='Band Filler', color=color.new(hullColor, transpSwitch))
 
 
 barcolor(color=candleCol ? hullColor : na)
@@ -155,7 +155,8 @@ f_check_demand_rejections() =>
                 if (na(dBox))
                     continue
                 withinBox = (high >= box.get_bottom(dBox) and high <= box.get_top(dBox)) or (close >= box.get_bottom(dBox) and close <= box.get_top(dBox))
-                bearishCandlesCount = math.sum(close < open ? 1 : 0, 15)
+                bearish = close < open ? 1 : 0
+                bearishCandlesCount = ta.cum(bearish) - ta.cum(bearish)[15]
                 if withinBox and bearishCandlesCount >= 7
                     label.new(bar_index, low, "Bearish count > 7", color=color.blue)
                     array.set(demandRejections, i, array.get(demandRejections, i) + 1)
@@ -169,7 +170,8 @@ f_check_supply_rejections() =>
                 if (na(sBox))
                     continue
                 withinBox = (low <= box.get_top(sBox) and low >= box.get_bottom(sBox)) or (close <= box.get_top(sBox) and close >= box.get_bottom(sBox))
-                bullishCandlesCount = math.sum(close > open ? 1 : 0, 15)
+                bullish = close > open ? 1 : 0
+                bullishCandlesCount = ta.cum(bullish) - ta.cum(bullish)[15]
                 if withinBox and bullishCandlesCount >= 7
                     label.new(bar_index, high, "Bullish count > 7", color=color.blue)
                     array.set(supplyRejections, i, array.get(supplyRejections, i) + 1)
@@ -243,14 +245,14 @@ f_supply_demand(value_array, bn_array, box_array, label_array, box_type, atr) =>
         extend_option := extend.right
     else if box_extend_option == "Both"
         extend_option := extend.both
-    if box_type == 1 and okay_to_draw and s1
+    if box_type == 1 and okay_to_draw and (s1 ? true : false)
         box.delete( array.get(box_array, array.size(box_array) - 5) )
         f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = color.rgb(242,54,69,50), border_width=1,
              bgcolor = supply_color, extend = extend_option, text = strength_text, text_halign = text.align_right, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
         box.delete( array.get(label_array, array.size(label_array) - 5) )
         f_array_add_pop(label_array, box.new( left = box_left, top = poi, right = box_right, bottom = poi, border_color = color.rgb(242,54,69,50), border_width=1, border_style=line.style_dotted,
              bgcolor = color.new(color.black,100), extend = extend_option,  text = '', text_halign = text.align_left, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
-    else if box_type == -1 and okay_to_draw and s1
+    else if box_type == -1 and okay_to_draw and (s1 ? true : false)
         box.delete( array.get(box_array, array.size(box_array) - 5) )
         f_array_add_pop(box_array, box.new( left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = color.rgb(0,188,212,50), border_width=1,
              bgcolor = demand_color, extend = extend_option,  text = strength_text, text_halign = text.align_right, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
@@ -287,39 +289,35 @@ var current_supply_poi = array.new_box(history_of_demand_to_keep, na)
 var current_demand_poi = array.new_box(history_of_demand_to_keep, na)
 var supply_bos = array.new_box(5, na)
 var demand_bos = array.new_box(5, na)
+
+// Pre-calc for consistency (fix warning)
+f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
+f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
+f_check_demand_rejections()
+f_check_supply_rejections()
+
 if not na(swing_high)
     f_array_add_pop(swing_high_values, swing_high)
     f_array_add_pop(swing_high_bns, bar_index[swing_length])
     if show_price_action_labels
         f_sh_sl_labels(swing_high_values, 1)
-    f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
+    if true
+        f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
+    if true
+        f_check_supply_rejections()
 else if not na(swing_low)
     f_array_add_pop(swing_low_values, swing_low)
     f_array_add_pop(swing_low_bns, bar_index[swing_length])
     if show_price_action_labels
         f_sh_sl_labels(swing_low_values, -1)
-    f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
+    if true
+        f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
+    if true
+        f_check_demand_rejections()
 f_sd_to_bos(current_supply_box, supply_bos, current_supply_poi, 1)
 f_sd_to_bos(current_demand_box, demand_bos, current_demand_poi, -1)
 f_extend_box_endpoint(current_supply_box)
 f_extend_box_endpoint(current_demand_box)
-
-// Inside the main execution, after the box is drawn, check for rejections
-if not na(swing_low)
-    f_array_add_pop(swing_low_values, swing_low)
-    f_array_add_pop(swing_low_bns, bar_index[swing_length])
-    if show_price_action_labels
-        f_sh_sl_labels(swing_low_values, -1)
-    f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
-    f_check_demand_rejections()
-
-if not na(swing_high)
-    f_array_add_pop(swing_high_values, swing_high)
-    f_array_add_pop(swing_high_bns, bar_index[swing_length])
-    if show_price_action_labels
-        f_sh_sl_labels(swing_high_values, 1)
-    f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
-    f_check_supply_rejections()
 //
 ma(source, length, type) =>
     switch type
@@ -401,8 +399,8 @@ ema_slow_signal = ta.ema(src_signal, 21)
 use_ms = true
 
 // placeholders in case MS block hasn't executed yet on early bars
-_align_bull = nz(align_bull, false)
-_align_bear = nz(align_bear, false)
+_align_bull = align_bull ? align_bull : false
+_align_bear = align_bear ? align_bear : false
 
 
 // === Donchian Setup (moved up for scope) ===
@@ -444,7 +442,7 @@ inp_chat_id = input.string("-100XXXXXXXXXX", "Telegram Chat ID", group=group_ale
 inp_thread_id = input.string("0", "Message Thread ID", group=group_alerts)
 inp_img_buy  = input.string("https://raw.githubusercontent.com/algomanlife/OpenFi-Trade-Engine/refs/heads/main/asset/long.png", "BUY Image URL", group=group_alerts)
 inp_img_sell = input.string("https://raw.githubusercontent.com/algomanlife/OpenFi-Trade-Engine/refs/heads/main/asset/short.png", "SELL Image URL", group=group_alerts)
-inp_caption_prefix = input.string("🎴 Open Fi Signal", "Caption Prefix", group=group_alerts)
+inp_caption_prefix = input.string("Open Fi Signal", "Caption Prefix", group=group_alerts)
 inp_use_position_box = input.bool(true, "Enable Telegram Position Box", group=group_alerts)
 inp_sl_dollar = input.float(0.0, "Stop Loss ($)", minval=0, group=group_alerts)
 inp_tp_dollar = input.float(0.0, "Take Profit ($)", minval=0, group=group_alerts)
@@ -473,7 +471,7 @@ long_close  = final_bear
 short_close = final_bull
 
 // === ALERT MESSAGES (CUSTOM + SAFE JSON BUILDER) ===
-build_msg(base, side, type) =>
+build_msg(side, type) =>
     img = side == "BUY" ? inp_img_buy : inp_img_sell
 
     entry = close
@@ -489,20 +487,39 @@ build_msg(base, side, type) =>
             sl := inp_sl_dollar > 0 ? entry + dollar_to_price(inp_sl_dollar) : na
             tp := inp_tp_dollar > 0 ? entry - dollar_to_price(inp_tp_dollar) : na
 
-    rr = (not na(sl) and not na(tp)) ? math.abs(tp - entry) / math.abs(entry - sl) : na
+    rr = (not na(sl) and not na(tp) and math.abs(entry - sl) > 0) ? math.abs(tp - entry) / math.abs(entry - sl) : na
 
-    sl_txt = not na(sl) ? str.tostring(sl) : "-"
-    tp_txt = not na(tp) ? str.tostring(tp) : "-"
+    sl_txt = not na(sl) ? str.tostring(sl, format.mintick) : "-"
+    tp_txt = not na(tp) ? str.tostring(tp, format.mintick) : "-"
     rr_txt = not na(rr) ? str.tostring(rr, "#.##") : "-"
 
-    caption = inp_caption_prefix + "\n\n" + "🎯 " + side + " " + type + "\n\n" + "Symbol: " + syminfo.ticker + "\n" + "TF: " + timeframe.period + "\n\n" + "Entry: " + str.tostring(entry) + "\n" + "SL: " + sl_txt + "\n" + "TP: " + tp_txt + "\n" + "RR: " + rr_txt + "\n\n" + "Price: " + str.tostring(close)
+    // SINGLE LINE caption (safe for Telegram)
+    caption = inp_caption_prefix + " | " + side + " " + type +
+              " | " + syminfo.ticker +
+              " | TF:" + timeframe.period +
+              " | Entry:" + str.tostring(entry) +
+              " | SL:" + sl_txt +
+              " | TP:" + tp_txt +
+              " | RR:" + rr_txt
 
-    '{' +'"chat_id":"' + inp_chat_id + '",' +'"message_thread_id":' + inp_thread_id + ',' +'"photo":"' + img + '",' +'"caption":"' + caption + '"' +'}'
+    // sanitize caption
+    caption := str.replace(caption, '"', '')
+    caption := str.replace(caption, "{", '')
+    caption := str.replace(caption, "}", '')
 
-alert_long_entry  = build_msg(inp_long_entry, "BUY", "ENTRY")
-alert_long_close  = build_msg(inp_long_close, "BUY", "CLOSE")
-alert_short_entry = build_msg(inp_short_entry, "SELL", "ENTRY")
-alert_short_close = build_msg(inp_short_close, "SELL", "CLOSE")
+    thread_id_num = str.tonumber(inp_thread_id)
+
+    json = '{"chat_id":"' + inp_chat_id + '",' +
+           (not na(thread_id_num) and thread_id_num > 0 ? '"message_thread_id":' + str.tostring(thread_id_num) + ',' : '') +
+           '"photo":"' + img + '",' +
+           '"caption":"' + caption + '"}'
+
+    json
+
+alert_long_entry  = build_msg("BUY", "ENTRY")
+alert_long_close  = build_msg("BUY", "CLOSE")
+alert_short_entry = build_msg("SELL", "ENTRY")
+alert_short_close = build_msg("SELL", "CLOSE")
 
 // === EXECUTION (NO DOUBLE SIGNAL SAME BAR) ===
 
@@ -851,7 +868,7 @@ clr = close < open ? color.red : color.green
 
 VolitiText = "Inactive"
 
-if nRes
+if nRes > 0
     VolitiText := "Active"
 //////////////////////////////////////////
 
@@ -1806,11 +1823,11 @@ dFVG() =>
 
         blFVG.unshift(
              FVG.new(
-                   l   [1]
-                 , h2  [1]
-                 , time[3]
-                 , false
-                 , na
+                   top = l[1],
+                   btm = h2[1],
+                   loc = time[3],
+                   isbb = false,
+                   bbloc = na
                   )
                  )
 
@@ -1830,11 +1847,11 @@ dFVG() =>
 
         brFVG.unshift(
              FVG.new(
-                   l2  [1]
-                 , h   [1]
-                 , time[3]
-                 , false
-                 , na
+                   top = l2[1],
+                   btm = h[1],
+                   loc = time[3],
+                   isbb = false,
+                   bbloc = na
                   )
                  )
 
@@ -1939,9 +1956,9 @@ structure(color upcss, color dncss, bool draw, bool internal, int limit) =>
     idbear            =  ms.find(true , false, true)
     btmP              =  obmode == "Length" ? (high[idbear] - 1 * atr[idbear]) < low [idbear] ? low [idbear] : (high[idbear] - 1 * atr[idbear]) : low [idbear]
     topP              =  obmode == "Length" ? (low [idbull] + 1 * atr[idbull]) > high[idbull] ? high[idbull] : (low [idbull] + 1 * atr[idbull]) : high[idbull]
-    atr               = ta.atr (200)
-    buy               = low  + atr
-    sel               = high - atr
+    float atr_local   = ta.atr(200)
+    float buy_local   = low + atr_local
+    float sel_local   = high - atr_local
     ph                = ta.pivothigh(high, mslen, mslen)
     pl                = ta.pivotlow (low , mslen, mslen)
     var int  [] phn   = array.new< int >(1, na)
@@ -1953,11 +1970,11 @@ structure(color upcss, color dncss, bool draw, bool internal, int limit) =>
         blob.clear()
         brob.clear()
 
-    if ph
+    if not na(ph)
         phn.unshift(bar_index[mslen])
         php.unshift(high[mslen])
 
-    if pl
+    if not na(pl)
         pln.unshift(bar_index[mslen])
         plp.unshift(low[mslen])
 
