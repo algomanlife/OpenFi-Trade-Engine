@@ -1,3 +1,16 @@
+## 🌐 Ecosystem
+
+<p align="center">
+  <a href="[https://www.tradingview.com/your-indicator-link](https://www.tradingview.com/script/hIA0VqmP-Algoman-OpenFi-v1-0-0-16/)">
+    <img src="https://img.shields.io/badge/OpenFi%20Indicator-View%20on%20TradingView-black?style=for-the-badge&logo=tradingview"/>
+  </a>
+
+  <a href="[https://t.me/your_channel](https://t.me/+8HSwTkajvHxjZDUx)">
+    <img src="https://img.shields.io/badge/OpenFi%20Community-Telegram-blue?style=for-the-badge&logo=telegram"/>
+  </a>
+</p>
+
+
 # OpenFI — Open Financial Infrastructure for Trading Signals
 
 OpenFI is an open-source signal engine built on TradingView, designed to bridge chart-based analysis with automated trading systems and decentralized execution environments.
