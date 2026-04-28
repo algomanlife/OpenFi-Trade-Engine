@@ -1,9 +1,9 @@
+## 🌐 Ecosystem
 <p align="center">
-  <img src="https://ethereum.org/_next/static/media/public-rules.d275a7ce.png" width="100%" />
+  <img src="https://ethereum.org/_next/static/media/public-rules.d275a7ce.png" width="50%" />
 </p>
 
-
-## 🌐 Ecosystem
+<h2 align="center">OpenFi by Algoman</h2>
 
 <p align="center">
   <a href="https://www.tradingview.com/script/hIA0VqmP-Algoman-OpenFi-v1-0-0-16/">
