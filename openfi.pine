@@ -1,44 +1,61 @@
-//
-//  OpenFi.pine
-//  SDK | mini™ 🎴 V2.2.7 (Engine)
-//
-//  Created by algoman on 21/02/2024.
-//
-
-// © algomanlife
-
-//@version=6
 //============================================================
-// OpenFi Engine - Documentation
-// Author: Algoman
-// Version: V2.2.7
+// OpenFi Trade Engine
+//============================================================
+// 🔗 GitHub Repository:
+// https://github.com/algomanlife/OpenFi-Trade-Engine.git
 //
-// Description:
-// This script is a multi-layer trading engine combining:
-// - SuperTrend-based trend detection
-// - Hull Moving Average trend filtering
-// - Smart Money (MS + Donchian) signal confirmation
-// - Supply & Demand zones with rejection tracking
-// - Range Filter for volatility-based structure
-// - Advanced Alert system (Telegram + JSON)
+// Author: Algoman
+// Version: v2.2.7
+// License: © algomanlife
+//
+//------------------------------------------------------------
+// DESCRIPTION
+//------------------------------------------------------------
+// OpenFi is a multi-layer trading engine built on Pine Script v6.
 //
 // Core Modules:
-// 1. Trend Engine (SuperTrend + EMA)
-// 2. Signal Engine (Basic + Smart mode)
-// 3. Market Structure (MS + Donchian Channel)
-// 4. Supply/Demand Zones
-// 5. Range Filter Logic
-// 6. Alert & Execution System
-// 7. Dashboard UI
+// - Trend Engine (SuperTrend + EMA)
+// - Signal Engine (Basic + Smart)
+// - Market Structure (MS + Donchian)
+// - Supply & Demand + Rejections
+// - Range Filter (Volatility Engine)
+// - Alert Engine (JSON / Telegram)
+// - Dashboard UI
+//
+//------------------------------------------------------------
+// ⚠️ IMPORTANT RULES
+//------------------------------------------------------------
+// - All stateful logic MUST run on every bar
+// - Do NOT wrap engines in conditions
+// - Separate logic (engine) from UI (display)
 //============================================================
 
 
-indicator('Algoman OpenFi', overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
+//@version=6
+
+
+
+indicator('OpenFi Community', overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // === INPUTS ===
 
-nbuysell = input.bool(true, 'Show Buy/Sell Labels', group = 'Buy/Sell & sensitivity')
-nsensitivity = input.float(4.2, title = 'sensitivity', minval = 1, maxval = 20, group = 'Buy/Sell & sensitivity')
+group_trend = "Trend Engine"
+
+openbuysell = input.bool(
+    true,
+    'Show Buy/Sell Labels',
+    tooltip = 'Display Buy/Sell signals on chart',
+    group = group_trend
+)
+
+opensensitivity = input.float(
+    4.2,
+    title = 'SuperTrend Sensitivity',
+    minval = 0.1,
+    maxval = 50,
+    tooltip = 'Higher = fewer signals, Lower = more signals',
+    group = group_trend
+)
 
 //============================================================
 // TREND ENGINE
@@ -77,16 +94,16 @@ supertrend_func(_close, factor, atrLen) =>
 
 // === CALC ===
 
-[supertrend, direction] = supertrend_func(close, nsensitivity * 2, 11)
+[supertrend, direction] = supertrend_func(close, opensensitivity * 2, 11)
 
-ssma4 = ta.sma(close, 8)
-ssma5 = ta.sma(close, 9)
-ssma9 = ta.sma(close, 13)
+opensma_start = ta.sma(close, 8)
+opensma_mid = ta.sma(close, 9)
+opensma_end = ta.sma(close, 13)
 
 // === LEVELS ===
 
-y3 = low - ta.atr(30) * 2
-y4 = high + ta.atr(30) * 2
+open1 = low - ta.atr(30) * 2
+open2 = high + ta.atr(30) * 2
 
 //============================================================
 // BASIC SIGNAL ENGINE
@@ -94,13 +111,13 @@ y4 = high + ta.atr(30) * 2
 // - Sell: Price crosses below SuperTrend + below SMA filter
 //============================================================
 
-bull = ta.crossover(close, supertrend) and close >= ssma9
-bear = ta.crossunder(close, supertrend) and close <= ssma9
+bull = ta.crossover(close, supertrend) and close >= opensma_end
+bear = ta.crossunder(close, supertrend) and close <= opensma_end
 
 // === OUTPUT ===
 
-buy = bull and nbuysell ? label.new(bar_index, y3, ssma4 >= ssma5 ? '🎴 Buy' : '🧑‍🚀 Buy', xloc.bar_index, yloc.price, #089981, label.style_label_up, color.white, size.normal) : na
-sell = bear and nbuysell ? label.new(bar_index, y4, ssma4 <= ssma5 ? '🎴 Sell' : '🧑‍🚀 Sell', xloc.bar_index, yloc.price, #990825, label.style_label_down, color.white, size.normal) : na
+buy = bull and openbuysell ? label.new(bar_index, open1, opensma_start >= opensma_mid ? '🎴 Buy' : '🧑‍🚀 Buy', xloc.bar_index, yloc.price, #089981, label.style_label_up, color.white, size.normal) : na
+sell = bear and openbuysell ? label.new(bar_index, open2, opensma_start <= opensma_mid ? '🎴 Sell' : '🧑‍🚀 Sell', xloc.bar_index, yloc.price, #990825, label.style_label_down, color.white, size.normal) : na
 
 //============================================================
 // HULL MOVING AVERAGE MODULE
@@ -162,7 +179,7 @@ barcolor(color = candleCol ? hullColor : na)
 
 gr_signal = 'MAIN SETTINGS'
 gr_dash = 'CONSOLE UI'
-history_of_demand_to_keep = 20
+history_oopen_demand_to_keep = 20
 show_zigzag = false
 show_price_action_labels = false
 showsr = input(true, title = 'Show Support & Resistance', group = 'Support & Resistance')
@@ -181,13 +198,13 @@ supply_color = input.color(color.rgb(178, 40, 51, 70), title = '', group = 'Supp
 // - Tracks rejection counts inside zones
 //============================================================
 
-var array<int> demandRejections = array.new_int(history_of_demand_to_keep, 0)
-var array<int> supplyRejections = array.new_int(history_of_demand_to_keep, 0)
-var array<int> demandCreationBars = array.new_int(history_of_demand_to_keep, na)
-var array<int> supplyCreationBars = array.new_int(history_of_demand_to_keep, na)
+var array<int> demandRejections = array.new_int(history_oopen_demand_to_keep, 0)
+var array<int> supplyRejections = array.new_int(history_oopen_demand_to_keep, 0)
+var array<int> demandCreationBars = array.new_int(history_oopen_demand_to_keep, na)
+var array<int> supplyCreationBars = array.new_int(history_oopen_demand_to_keep, na)
 
-var array<box> current_demand_box = array.new_box(history_of_demand_to_keep, na)
-var array<box> current_supply_box = array.new_box(history_of_demand_to_keep, na)
+var array<box> current_demand_box = array.new_box(history_oopen_demand_to_keep, na)
+var array<box> current_supply_box = array.new_box(history_oopen_demand_to_keep, na)
 
 // === GLOBAL CUMULATIVE (Fix ta.cum warning) ===
 bearish_global = close < open ? 1 : 0
@@ -196,8 +213,15 @@ bullish_global = close > open ? 1 : 0
 bearishCum_global = ta.cum(bearish_global)
 bullishCum_global = ta.cum(bullish_global)
 
-f_check_demand_rejections() =>
-    for i = 0 to history_of_demand_to_keep - 1 by 1
+//============================================================
+// DEMAND REJECTION ENGINE
+//------------------------------------------------------------
+// Counts bearish candles inside demand zones
+// Uses global cumulative (ta.cum) for consistency
+//============================================================
+
+open_check_demand_rejections() =>
+    for i = 0 to history_oopen_demand_to_keep - 1 by 1
         if not na(array.get(demandCreationBars, i))
             if bar_index - array.get(demandCreationBars, i) > 15 and bar_index - array.get(demandCreationBars, i) % 15 == 0
                 label.new(bar_index, high, 'Checking demand rejection', color = color.red)
@@ -211,8 +235,14 @@ f_check_demand_rejections() =>
                     label.new(bar_index, low, 'Bearish count > 7', color = color.blue)
                     array.set(demandRejections, i, array.get(demandRejections, i) + 1)
 
-f_check_supply_rejections() =>
-    for i = 0 to history_of_demand_to_keep - 1 by 1
+//============================================================
+// SUPPLY REJECTION ENGINE
+//------------------------------------------------------------
+// Counts bullish candles inside supply zones
+//============================================================                
+
+open_check_supply_rejections() =>
+    for i = 0 to history_oopen_demand_to_keep - 1 by 1
         if not na(array.get(supplyCreationBars, i))
             if bar_index - array.get(supplyCreationBars, i) > 15 and bar_index - array.get(supplyCreationBars, i) % 15 == 0
                 label.new(bar_index, low, 'Checking supply rejection', color = color.red)
@@ -231,11 +261,11 @@ f_check_supply_rejections() =>
 
 
 
-f_array_add_pop(array, new_value_to_add) =>
+open_array_add_pop(array, new_value_to_add) =>
     array.unshift(array, new_value_to_add)
     array.pop(array)
 
-f_sh_sl_labels(array, swing_type) =>
+open_sh_sl_labels(array, swing_type) =>
     var string label_text = na
     if swing_type == 1
         if array.get(array, 0) >= array.get(array, 1)
@@ -254,7 +284,7 @@ f_sh_sl_labels(array, swing_type) =>
             label_text
         label.new(bar_index - swing_length, array.get(array, 0), text = label_text, style = label.style_label_up, textcolor = color.white, color = color.new(color.white, 100), size = size.tiny)
 
-f_check_overlapping(new_poi, box_array, atr) =>
+open_check_overlapping(new_poi, box_array, atr) =>
     atr_threshold = atr * 2
     okay_to_draw = true
     for i = 0 to array.size(box_array) - 1 by 1
@@ -271,7 +301,7 @@ f_check_overlapping(new_poi, box_array, atr) =>
             okay_to_draw
     okay_to_draw
 
-f_supply_demand(value_array, bn_array, box_array, label_array, box_type, atr) =>
+open_supply_demand(value_array, bn_array, box_array, label_array, box_type, atr) =>
     atr_buffer = atr * (box_width / 10)
     box_left = array.get(bn_array, 0)
     box_right = bar_index + 20
@@ -288,7 +318,7 @@ f_supply_demand(value_array, bn_array, box_array, label_array, box_type, atr) =>
         box_top := box_bottom + atr_buffer
         poi := (box_top + box_bottom) / 2
         poi
-    okay_to_draw = f_check_overlapping(poi, box_array, atr)
+    okay_to_draw = open_check_overlapping(poi, box_array, atr)
     swing_volume = volume[swing_length]
 
     highest_volume_last_20 = ta.highest(volume, 20)
@@ -306,16 +336,16 @@ f_supply_demand(value_array, bn_array, box_array, label_array, box_type, atr) =>
         extend_option
     if box_type == 1 and okay_to_draw and bool(s1)
         box.delete(array.get(box_array, array.size(box_array) - 5))
-        f_array_add_pop(box_array, box.new(left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = color.rgb(242, 54, 69, 50), border_width = 1, bgcolor = supply_color, extend = extend_option, text = strength_text, text_halign = text.align_right, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
+        open_array_add_pop(box_array, box.new(left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = color.rgb(242, 54, 69, 50), border_width = 1, bgcolor = supply_color, extend = extend_option, text = strength_text, text_halign = text.align_right, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
         box.delete(array.get(label_array, array.size(label_array) - 5))
-        f_array_add_pop(label_array, box.new(left = box_left, top = poi, right = box_right, bottom = poi, border_color = color.rgb(242, 54, 69, 50), border_width = 1, border_style = line.style_dotted, bgcolor = color.new(color.black, 100), extend = extend_option, text = '', text_halign = text.align_left, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
+        open_array_add_pop(label_array, box.new(left = box_left, top = poi, right = box_right, bottom = poi, border_color = color.rgb(242, 54, 69, 50), border_width = 1, border_style = line.style_dotted, bgcolor = color.new(color.black, 100), extend = extend_option, text = '', text_halign = text.align_left, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
     else if box_type == -1 and okay_to_draw and bool(s1)
         box.delete(array.get(box_array, array.size(box_array) - 5))
-        f_array_add_pop(box_array, box.new(left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = color.rgb(0, 188, 212, 50), border_width = 1, bgcolor = demand_color, extend = extend_option, text = strength_text, text_halign = text.align_right, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
+        open_array_add_pop(box_array, box.new(left = box_left, top = box_top, right = box_right, bottom = box_bottom, border_color = color.rgb(0, 188, 212, 50), border_width = 1, bgcolor = demand_color, extend = extend_option, text = strength_text, text_halign = text.align_right, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
         box.delete(array.get(label_array, array.size(label_array) - 5))
-        f_array_add_pop(label_array, box.new(left = box_left, top = poi, right = box_right, bottom = poi, border_color = color.rgb(0, 188, 212, 50), border_width = 1, border_style = line.style_dotted, bgcolor = color.new(color.black, 100), extend = extend_option, text = '', text_halign = text.align_left, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
+        open_array_add_pop(label_array, box.new(left = box_left, top = poi, right = box_right, bottom = poi, border_color = color.rgb(0, 188, 212, 50), border_width = 1, border_style = line.style_dotted, bgcolor = color.new(color.black, 100), extend = extend_option, text = '', text_halign = text.align_left, text_valign = text.align_center, text_color = color.white, text_size = size.small, xloc = xloc.bar_index))
 
-f_sd_to_bos(box_array, bos_array, label_array, zone_type) =>
+open_sd_to_bos(box_array, bos_array, label_array, zone_type) =>
     if zone_type == 1
         for i = 0 to array.size(box_array) - 1 by 1
             level_to_break = box.get_top(array.get(box_array, i))
@@ -329,7 +359,7 @@ f_sd_to_bos(box_array, bos_array, label_array, zone_type) =>
                 box.delete(array.get(box_array, i))
                 box.delete(array.get(label_array, i))
 
-f_extend_box_endpoint(box_array) =>
+open_extend_box_endpoint(box_array) =>
     for i = 0 to array.size(box_array) - 1 by 1
         box.set_right(array.get(box_array, i), bar_index + 30) // Extend only 20 bars
 
@@ -340,38 +370,38 @@ var swing_high_values = array.new_float(5, 0.00)
 var swing_low_values = array.new_float(5, 0.00)
 var swing_high_bns = array.new_int(5, 0)
 var swing_low_bns = array.new_int(5, 0)
-var current_supply_poi = array.new_box(history_of_demand_to_keep, na)
-var current_demand_poi = array.new_box(history_of_demand_to_keep, na)
+var current_supply_poi = array.new_box(history_oopen_demand_to_keep, na)
+var current_demand_poi = array.new_box(history_oopen_demand_to_keep, na)
 var supply_bos = array.new_box(5, na)
 var demand_bos = array.new_box(5, na)
 
 // Pre-calc for consistency (fix warning)
-f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
-f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
-f_check_demand_rejections()
-f_check_supply_rejections()
+open_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
+open_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
+open_check_demand_rejections()
+open_check_supply_rejections()
 
 if not na(swing_high)
-    f_array_add_pop(swing_high_values, swing_high)
-    f_array_add_pop(swing_high_bns, bar_index[swing_length])
+    open_array_add_pop(swing_high_values, swing_high)
+    open_array_add_pop(swing_high_bns, bar_index[swing_length])
     if show_price_action_labels
-        f_sh_sl_labels(swing_high_values, 1)
+        open_sh_sl_labels(swing_high_values, 1)
 
 if not na(swing_low)
-    f_array_add_pop(swing_low_values, swing_low)
-    f_array_add_pop(swing_low_bns, bar_index[swing_length])
+    open_array_add_pop(swing_low_values, swing_low)
+    open_array_add_pop(swing_low_bns, bar_index[swing_length])
     if show_price_action_labels
-        f_sh_sl_labels(swing_low_values, -1)
+        open_sh_sl_labels(swing_low_values, -1)
 
 // Ensure these are called exactly once, outside of the above conditions:
-f_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
-f_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
-f_check_supply_rejections()
-f_check_demand_rejections()
-f_sd_to_bos(current_supply_box, supply_bos, current_supply_poi, 1)
-f_sd_to_bos(current_demand_box, demand_bos, current_demand_poi, -1)
-f_extend_box_endpoint(current_supply_box)
-f_extend_box_endpoint(current_demand_box)
+open_supply_demand(swing_high_values, swing_high_bns, current_supply_box, current_supply_poi, 1, atr567)
+open_supply_demand(swing_low_values, swing_low_bns, current_demand_box, current_demand_poi, -1, atr567)
+open_check_supply_rejections()
+open_check_demand_rejections()
+open_sd_to_bos(current_supply_box, supply_bos, current_supply_poi, 1)
+open_sd_to_bos(current_demand_box, demand_bos, current_demand_poi, -1)
+open_extend_box_endpoint(current_supply_box)
+open_extend_box_endpoint(current_demand_box)
 //
 ma(source, length, type) =>
     switch type
@@ -434,12 +464,25 @@ barsL = 10
 barsR = 10
 pivotHigh = fixnan(ta.pivothigh(barsL, barsR)[1])
 pivotLow = fixnan(ta.pivotlow(barsL, barsR)[1])
-// Colors
-green_main = #04994b
-green2 = #15c02a
 
-red_col = #b4060d
-green_col = #04994b
+//============================================================
+// COLOR SYSTEM (SDK)
+//============================================================
+
+// Base Colors
+color GREEN_BASE = #04994b
+color RED_BASE   = #b4060d
+
+// UI Colors
+color GREEN_UI = color.new(GREEN_BASE, 0)
+color RED_UI   = color.new(RED_BASE, 0)
+
+// Signal Colors
+color GREEN_SIGNAL = color.lime
+color RED_SIGNAL   = color.red
+
+// Extra
+color GREEN_ALT = #15c02a
 
 barcolor(close > supertrend ? color.green : color.red)
 p5 = plot(ocAvg, '', na, editable = false)
@@ -488,6 +531,17 @@ ms_bear = _align_bear and trendChangeDown
 
 final_bull = use_ms ? ms_bull : false
 final_bear = use_ms ? ms_bear : false
+
+
+//============================================================
+// ALERT ENGINE (JSON + TELEGRAM)
+//------------------------------------------------------------
+// Generates structured alerts:
+// - BUY ENTRY / CLOSE
+// - SELL ENTRY / CLOSE
+//
+// Compatible with webhook systems (PineConnector)
+//============================================================
 
 // === CUSTOM ALERT INPUTS ===
 group_alerts = 'Custom Alerts'
@@ -701,7 +755,7 @@ rng_filt(h, l, rng_, n, type, smooth, sn, av_rf, av_n) =>
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //Filter Type
-f_type = 'Type 2'
+open_type = 'Type 2'
 
 //Movement Source
 mov_src = 'Close'
@@ -730,7 +784,7 @@ h_val = mov_src == 'Wicks' ? high : close
 l_val = mov_src == 'Wicks' ? low : close
 
 //Range Filter Values
-[h_band, l_band, filt] = rng_filt(h_val, l_val, rng_size((h_val + l_val) / 2, rng_scale, rng_qty, rng_per), rng_per, f_type, smooth_range, smooth_per, av_vals, av_samples)
+[h_band, l_band, filt] = rng_filt(h_val, l_val, rng_size((h_val + l_val) / 2, rng_scale, rng_qty, rng_per), rng_per, open_type, smooth_range, smooth_per, av_vals, av_samples)
 
 //Direction Conditions
 var fdir = 0.0
@@ -2026,6 +2080,20 @@ dFVG() =>
             for i = 0 to math.min(fvg_num - 1, brFVG.size() - 1) by 1
                 FVG fvg = brFVG.get(i)
                 dispFVG(fvg, i, false)
+
+
+//============================================================
+// MARKET STRUCTURE ENGINE (CORE)
+//------------------------------------------------------------
+// Includes:
+// - BOS (Break of Structure)
+// - CHoCH
+// - Order Blocks
+// - Liquidity Sweeps
+//
+// ⚠️ MUST RUN ON EVERY BAR
+// Do NOT wrap in conditions
+//============================================================
 
 
 structure(color upcss, color dncss, bool draw, bool internal, int limit) =>
