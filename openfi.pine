@@ -8,13 +8,44 @@
 // © algomanlife
 
 //@version=6
+//============================================================
+// OpenFi Engine - Documentation
+// Author: Algoman
+// Version: V2.2.7
+//
+// Description:
+// This script is a multi-layer trading engine combining:
+// - SuperTrend-based trend detection
+// - Hull Moving Average trend filtering
+// - Smart Money (MS + Donchian) signal confirmation
+// - Supply & Demand zones with rejection tracking
+// - Range Filter for volatility-based structure
+// - Advanced Alert system (Telegram + JSON)
+//
+// Core Modules:
+// 1. Trend Engine (SuperTrend + EMA)
+// 2. Signal Engine (Basic + Smart mode)
+// 3. Market Structure (MS + Donchian Channel)
+// 4. Supply/Demand Zones
+// 5. Range Filter Logic
+// 6. Alert & Execution System
+// 7. Dashboard UI
+//============================================================
+
+
+indicator('Algoman OpenFi', overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // === INPUTS ===
 
 nbuysell = input.bool(true, 'Show Buy/Sell Labels', group = 'Buy/Sell & sensitivity')
 nsensitivity = input.float(4.2, title = 'sensitivity', minval = 1, maxval = 20, group = 'Buy/Sell & sensitivity')
 
-// === TREND ===
+//============================================================
+// TREND ENGINE
+// - Custom SuperTrend implementation
+// - Determines primary market direction
+// - Outputs trend line + direction state
+//============================================================
 
 supertrend_func(_close, factor, atrLen) =>
     atr = ta.atr(atrLen)
@@ -57,7 +88,11 @@ ssma9 = ta.sma(close, 13)
 y3 = low - ta.atr(30) * 2
 y4 = high + ta.atr(30) * 2
 
-// === SIGNAL ===
+//============================================================
+// BASIC SIGNAL ENGINE
+// - Buy: Price crosses above SuperTrend + above SMA filter
+// - Sell: Price crosses below SuperTrend + below SMA filter
+//============================================================
 
 bull = ta.crossover(close, supertrend) and close >= ssma9
 bear = ta.crossunder(close, supertrend) and close <= ssma9
@@ -67,7 +102,12 @@ bear = ta.crossunder(close, supertrend) and close <= ssma9
 buy = bull and nbuysell ? label.new(bar_index, y3, ssma4 >= ssma5 ? '🎴 Buy' : '🧑‍🚀 Buy', xloc.bar_index, yloc.price, #089981, label.style_label_up, color.white, size.normal) : na
 sell = bear and nbuysell ? label.new(bar_index, y4, ssma4 <= ssma5 ? '🎴 Sell' : '🧑‍🚀 Sell', xloc.bar_index, yloc.price, #990825, label.style_label_down, color.white, size.normal) : na
 
-//================ HULL =================//
+//============================================================
+// HULL MOVING AVERAGE MODULE
+// - Supports HMA / EHMA / THMA
+// - Optional HTF aggregation
+// - Used for trend smoothing & alignment signals
+//============================================================
 
 hull_src = input(close, title = 'Hull Source', group = 'Hull')
 modeSwitch = input.string('Ehma', title = 'Hull Variation', options = ['Hma', 'Thma', 'Ehma'], group = 'Hull')
@@ -117,7 +157,6 @@ barcolor(color = candleCol ? hullColor : na)
 
 //================================================//
 
-indicator('Algoman OpenFi', overlay = true, max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // Get user input
 
@@ -135,7 +174,12 @@ s1 = request.security(syminfo.tickerid, res, showsr, gaps = barmerge.gaps_on)
 demand_color = input.color(color.rgb(0, 188, 212, 70), title = 'Support & Resistance Color', group = 'Support & Resistance')
 supply_color = input.color(color.rgb(178, 40, 51, 70), title = '', group = 'Support & Resistance')
 
-//Support//
+//============================================================
+// SUPPLY & DEMAND ENGINE
+// - Detects swing highs/lows
+// - Builds zones using ATR buffer
+// - Tracks rejection counts inside zones
+//============================================================
 
 var array<int> demandRejections = array.new_int(history_of_demand_to_keep, 0)
 var array<int> supplyRejections = array.new_int(history_of_demand_to_keep, 0)
@@ -145,6 +189,12 @@ var array<int> supplyCreationBars = array.new_int(history_of_demand_to_keep, na)
 var array<box> current_demand_box = array.new_box(history_of_demand_to_keep, na)
 var array<box> current_supply_box = array.new_box(history_of_demand_to_keep, na)
 
+// === GLOBAL CUMULATIVE (Fix ta.cum warning) ===
+bearish_global = close < open ? 1 : 0
+bullish_global = close > open ? 1 : 0
+
+bearishCum_global = ta.cum(bearish_global)
+bullishCum_global = ta.cum(bullish_global)
 
 f_check_demand_rejections() =>
     for i = 0 to history_of_demand_to_keep - 1 by 1
@@ -156,8 +206,7 @@ f_check_demand_rejections() =>
                     continue
                 withinBox = high >= box.get_bottom(dBox) and high <= box.get_top(dBox) or close >= box.get_bottom(dBox) and close <= box.get_top(dBox)
                 bearish = close < open ? 1 : 0
-                var float bearishCum = 0.0
-                bearishCum := nz(bearishCum[1], 0) + bearish
+                bearishCum = bearishCum_global                
                 if withinBox and bearishCum >= 7
                     label.new(bar_index, low, 'Bearish count > 7', color = color.blue)
                     array.set(demandRejections, i, array.get(demandRejections, i) + 1)
@@ -172,8 +221,7 @@ f_check_supply_rejections() =>
                     continue
                 withinBox = low <= box.get_top(sBox) and low >= box.get_bottom(sBox) or close <= box.get_top(sBox) and close >= box.get_bottom(sBox)
                 bullish = close > open ? 1 : 0
-                var float bullishCum = 0.0
-                bullishCum := nz(bullishCum[1], 0) + bullish
+                bullishCum = bullishCum_global                
                 if withinBox and bullishCum >= 7
                     label.new(bar_index, high, 'Bullish count > 7', color = color.blue)
                     array.set(supplyRejections, i, array.get(supplyRejections, i) + 1)
@@ -341,20 +389,22 @@ supertrend(_src, factor, atrLen) =>
     prevUpperBand = nz(upperBand[1])
     lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
     upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
-    int direction = na
-    float superTrend = na
-    prevSuperTrend = superTrend[1]
+
+    var int st_direction = na
+    var float st_superTrend = na
+
+    prevSuperTrend = st_superTrend[1]
+
     if na(atrat[1])
-        direction := 1
-        direction
+        st_direction := 1
     else if prevSuperTrend == prevUpperBand
-        direction := close > upperBand ? -1 : 1
-        direction
+        st_direction := close > upperBand ? -1 : 1
     else
-        direction := close < lowerBand ? 1 : -1
-        direction
-    superTrend := direction == -1 ? lowerBand : upperBand
-    [superTrend, direction]
+        st_direction := close < lowerBand ? 1 : -1
+
+    st_superTrend := st_direction == -1 ? lowerBand : upperBand
+
+    [st_superTrend, st_direction]
 
 
 // Get Components
@@ -385,11 +435,11 @@ barsR = 10
 pivotHigh = fixnan(ta.pivothigh(barsL, barsR)[1])
 pivotLow = fixnan(ta.pivotlow(barsL, barsR)[1])
 // Colors
-green = #04994b
+green_main = #04994b
 green2 = #15c02a
 
-red = #b4060d
-red2 = #ff0002
+red_col = #b4060d
+green_col = #04994b
 
 barcolor(close > supertrend ? color.green : color.red)
 p5 = plot(ocAvg, '', na, editable = false)
@@ -463,7 +513,13 @@ inp_tp_dollar = input.float(0.0, 'Take Profit ($)', minval = 0, group = group_al
 
 alert_mode = input.string('SMART', 'Alert Mode', options = ['SMART', 'BASIC'], group = group_alerts)
 
-// === CUSTOM ALERT SYSTEM ===
+//============================================================
+// ALERT SYSTEM (TELEGRAM + JSON BUILDER)
+// - Generates structured JSON messages
+// - Supports Entry / Close events
+// - Includes SL / TP / RR calculation
+// - Designed for PineConnector / Webhook execution
+//============================================================
 
 dollar_to_price(dollar) =>
     dollar == 0 ? na : dollar / syminfo.pointvalue
@@ -570,7 +626,12 @@ alertcondition(simple_alerts and combined_signal, title = '🎴 BUY/SELL SIGNAL'
 
 
 
-//---------------------Range Filter----------------------------------------------------------------------------------------------------------------------
+//============================================================
+// RANGE FILTER ENGINE
+// - Volatility-based adaptive filtering
+// - Uses ATR / StdDev / Avg Change
+// - Defines directional bias (upward/downward)
+//============================================================
 
 //Conditional Sampling EMA Function 
 Cond_EMA(x, cond, n) =>
@@ -739,7 +800,12 @@ maColor(_ma, _maRef) =>
 
 
 
-// === main ===
+//============================================================
+// MOVING AVERAGE ALIGNMENT SYSTEM
+// - Multi-EMA structure alignment
+// - Generates MS (Market Structure) signals
+// - Prevents duplicate signals using state lock
+//============================================================
 
 
 // ────────────────────[ Input Parameters ]
@@ -808,7 +874,13 @@ plot(ma40, color = maColor(ma40, ma100), style = plot.style_line, title = 'MMA40
 plot(ma45, color = maColor(ma45, ma100), style = plot.style_line, title = 'MMA45', linewidth = 1)
 plot(ma50, color = maColor(ma50, ma100), style = plot.style_line, title = 'MMA50', linewidth = 1)
 
-//Dashboard//
+//============================================================
+// DASHBOARD (SMART PANEL)
+// - Displays market state
+// - Volatility percentage
+// - Session detection (NY/London/Tokyo/Sydney)
+// - Trend pressure overview
+//============================================================
 showDashboard = input(true, 'Smart Panel', group = gr_dash, inline = 'Features1')
 locationDashboard = input.string('Bottom Right', 'Table Location', ['Top Right', 'Middle Right', 'Bottom Right', 'Top Center', 'Middle Center', 'Bottom Center', 'Top Left', 'Middle Left', 'Bottom Left'], group = gr_dash, tooltip = 'Smart Panel')
 sizeDashboard = input.string('Small', 'Table Size', ['Large', 'Normal', 'Small', 'Tiny'], group = gr_dash, tooltip = 'Smart Panel')
@@ -852,10 +924,16 @@ cond(_offset) =>
     oscB0 = osc < 0
     oscTop = oscFal and oscRis[1]
     oscBot = oscRis and oscFal[1]
-    bullR = oscB0 and oscBot and osc > ta.valuewhen(oscB0 and oscBot, osc, 1) and bot < ta.valuewhen(oscB0 and oscBot, bot, 1)
-    bearR = oscA0 and oscTop and osc < ta.valuewhen(oscA0 and oscTop, osc, 1) and top > ta.valuewhen(oscA0 and oscTop, top, 1)
-    bullH = oscB0 and oscBot and osc < ta.valuewhen(oscB0 and oscBot, osc, 1) and bot > ta.valuewhen(oscB0 and oscBot, bot, 1)
-    bearH = oscA0 and oscTop and osc > ta.valuewhen(oscA0 and oscTop, osc, 1) and top < ta.valuewhen(oscA0 and oscTop, top, 1)
+    condBull = oscB0 and oscBot
+    condBear = oscA0 and oscTop
+    prev_osc_bull = ta.valuewhen(condBull, osc, 1)
+    prev_bot_bull = ta.valuewhen(condBull, bot, 1)
+    prev_osc_bear = ta.valuewhen(condBear, osc, 1)
+    prev_top_bear = ta.valuewhen(condBear, top, 1)
+    bullR = condBull and osc > prev_osc_bull and bot < prev_bot_bull
+    bearR = condBear and osc < prev_osc_bear and top > prev_top_bear
+    bullH = condBull and osc < prev_osc_bull and bot > prev_bot_bull
+    bearH = condBear and osc > prev_osc_bear and top < prev_top_bear
     [sqzOn, sqzOff] = sqz(20, 2, 20, 2, close)
     [_hist1, _line1, upper1, lower1] = qqe(6, 6, 3, close, 50, 0.001)
     [_hist2, _line2, upper2, lower2] = qqe(6, 5, 1.618, close, 50, 1)
@@ -1062,9 +1140,21 @@ plot(35, color = dchannelalt(dlen - 6, maintrend), style = plot.style_columns, h
 plot(40, color = dchannelalt(dlen - 7, maintrend), style = plot.style_columns, histbase = 35)
 plot(45, color = dchannelalt(dlen - 8, maintrend), style = plot.style_columns, histbase = 40)
 plot(50, color = dchannelalt(dlen - 9, maintrend), style = plot.style_columns, histbase = 45)
-//========================================================//
+//============================================================
+// DONCHIAN CHANNEL TREND SYSTEM
+// - Detects breakout-based trend shifts
+// - Combined with MS alignment for SMART signals
+//============================================================
 
 
+//============================================================
+// ADVANCED MARKET STRUCTURE (ICT / SMC ENGINE)
+// - Break of Structure (BOS)
+// - Change of Character (CHoCH)
+// - Order Blocks & Breakers
+// - Fair Value Gaps (FVG)
+// - Liquidity Sweeps
+//============================================================
 MSG = 'MARKET STRUCTURE'
 VBG = 'VOLUMETRIC ORDER BLOCKS'
 MST = 'Limit market structure calculation to improve memory speed time'
@@ -2376,32 +2466,32 @@ structure(color upcss, color dncss, bool draw, bool internal, int limit) =>
 
 
     if blob.size() > 0
-        ob = blob.get(0)
-        if not ob.isbb
-            if low < ob.top
+        ob_item = blob.get(0)
+        if not ob_item.isbb
+            if low < ob_item.top
 
                 if blobenter.normal == false
 
                     blobenter.normal := true
                     blobenter.normal
         else
-            if high > ob.btm
+            if high > ob_item.btm
                 if blobenter.breaker == false
 
                     blobenter.breaker := true
                     blobenter.breaker
 
     if brob.size() > 0
-        ob = brob.get(0)
-        if not ob.isbb
-            if high > ob.btm
+        ob_item = brob.get(0)
+        if not ob_item.isbb
+            if high > ob_item.btm
 
                 if brobenter.normal == false
 
                     brobenter.normal := true
                     brobenter.normal
         else
-            if low < ob.top
+            if low < ob_item.top
                 if brobenter.breaker == false
 
                     brobenter.breaker := true
@@ -2457,16 +2547,15 @@ structure(color upcss, color dncss, bool draw, bool internal, int limit) =>
 
 //}
 
-structure ms = na
+// ALWAYS EXECUTE (engine layer)
+structure ms = structure(swingcssup, swingcssdn, showSwing, false, swingLimit)
 
+// CONTROL USAGE (display / logic)
 if windowsis
     if bar_index > last_bar_index - mswindow
-        ms := structure(swingcssup, swingcssdn, showSwing, false, swingLimit)
         ms
-if windowsis == false
-    ms := structure(swingcssup, swingcssdn, showSwing, false, swingLimit)
+else
     ms
-
 // if showInternal and inZone
 //     structure ims = structure(interncssup, interncssdn, showInternal, true , swingLimit)
 
@@ -2477,9 +2566,9 @@ method darkcss(color css, float factor) =>
 
     blue = color.b(css) * (1 - factor)
     red = color.r(css) * (1 - factor)
-    green = color.g(css) * (1 - factor)
+    green_main = color.g(css) * (1 - factor)
 
-    color.rgb(red, green, blue, 0)
+    color.rgb(red, green_main, blue, 0)
 
 if windowsis ? bar_index > last_bar_index - mswindow : true
     css := ms.trend == 1 ? swingcssup : swingcssdn
